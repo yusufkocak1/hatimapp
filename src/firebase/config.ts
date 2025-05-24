@@ -3,15 +3,21 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 
+// Çevre değişkenlerinden Firebase yapılandırma bilgilerini al
 const firebaseConfig = {
-  apiKey: "AIzaSyCHG7pGWP1wm8did5ULebp-QPz3gRb2kHs",
-  authDomain: "hatim-app-8eb96.firebaseapp.com",
-  projectId: "hatim-app-8eb96",
-  storageBucket: "hatim-app-8eb96.appspot.com",
-  messagingSenderId: "644355268191",
-  appId: "1:644355268191:web:3e409de357f4ac1d6585ea",
-  measurementId: "G-SFVRWNBSB9"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
+
+// Çevre değişkenlerinin yüklü olduğunu kontrol et
+if (!import.meta.env.VITE_FIREBASE_API_KEY) {
+  console.error("Firebase yapılandırma değişkenleri bulunamadı! .env dosyalarını kontrol edin.");
+}
 
 const app = initializeApp(firebaseConfig);
 

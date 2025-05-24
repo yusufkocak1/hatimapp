@@ -1,54 +1,138 @@
-# React + TypeScript + Vite
+# Hatim Takip Uygulaması
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Bu uygulama, takımlar halinde Kur'an-ı Kerim hatmi yapmak ve takip etmek için geliştirilmiş bir web uygulamasıdır. Kullanıcılar takımlar oluşturabilir, takımlara katılabilir ve hatim okuyuşlarını takip edebilirler.
 
-Currently, two official plugins are available:
+## Özellikler
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Takım oluşturma ve yönetme
+- Hatim başlatma ve sayfa takibi
+- Kullanıcı davet sistemi
+- Hatim ilerleme durumunu görüntüleme
+- Okunmuş sayfaları işaretleme
 
-## Expanding the ESLint configuration
+## Kullanılan Teknolojiler
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **React**: UI bileşenleri için
+- **TypeScript**: Tip güvenliği için
+- **Firebase**: 
+  - Authentication: Kullanıcı yönetimi
+  - Firestore: Veritabanı
+  - Cloud Functions: Sunucu taraflı işlemler
+- **Vite**: Hızlı geliştirme deneyimi için
+- **Tailwind CSS**: UI tasarımı için
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+## Başlangıç
+
+### Gereksinimler
+
+- Node.js (v18 veya üstü)
+- npm veya yarn
+- Firebase hesabı
+
+### Kurulum
+
+1. Repoyu klonlayın:
+   ```bash
+   git clone https://github.com/kullanici/hatim-app.git
+   cd hatim-app
+   ```
+
+2. Bağımlılıkları yükleyin:
+   ```bash
+   npm install
+   ```
+
+3. Firebase projesi oluşturun:
+   - [Firebase Console](https://console.firebase.google.com/)'a gidin
+   - "Proje Ekle" seçeneği ile yeni bir proje oluşturun
+   - Web uygulaması ekleyin (</> simgesine tıklayın)
+   - Uygulama takma adı girin ve "Kaydet"e tıklayın
+
+### Firebase Yapılandırması
+
+1. **Firebase konsol yapılandırma bilgilerini almak için:**
+   - Firebase konsolunda projenize gidin
+   - Sol menüden "Proje Ayarları" (dişli çark simgesi) seçeneğine tıklayın
+   - "Genel" sekmesinde aşağıya kaydırarak "Firebase SDK snippet" bölümünü bulun
+   - "Config" seçeneğini seçin ve görüntülenen yapılandırma nesnesini kopyalayın
+
+2. **Ortam değişkenlerini ayarlayın:** 
+   - `.env.development.example` dosyasını `.env.development` olarak kopyalayın
+   - Firebase konsolundan aldığınız yapılandırma bilgilerini aşağıdaki gibi ekleyin:
+   
+     ```env
+     VITE_FIREBASE_API_KEY="your-api-key"
+     VITE_FIREBASE_AUTH_DOMAIN="your-project-id.firebaseapp.com"
+     VITE_FIREBASE_PROJECT_ID="your-project-id"
+     VITE_FIREBASE_STORAGE_BUCKET="your-project-id.appspot.com"
+     VITE_FIREBASE_MESSAGING_SENDER_ID="your-messaging-sender-id"
+     VITE_FIREBASE_APP_ID="your-app-id"
+     VITE_FIREBASE_MEASUREMENT_ID="your-measurement-id"
+     ```
+
+3. **Firebase servisleri ayarlayın:**
+   - Authentication: Email/Password kimlik doğrulamasını etkinleştirin
+   - Firestore Database: Veritabanı oluşturun ve kuralları ayarlayın
+   - Cloud Functions: Cloud Functions servisini etkinleştirin
+
+### Geliştirme Ortamında Çalıştırma
+
+Development ortamını başlatmak için:
+```bash
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
+Test ortamını başlatmak için:
+```bash
+npm run dev:test
 ```
+
+### Build İşlemleri
+
+Production ortamı için build:
+```bash
+npm run build
+```
+
+Test ortamı için build:
+```bash
+npm run build:test
+```
+
+Geliştirme ortamı için build:
+```bash
+npm run build:dev
+```
+
+## Farklı Ortamlar
+
+Bu uygulama üç farklı ortamda çalışabilir:
+
+1. **Development (.env.development)**: Yerel geliştirme için kullanılır
+2. **Test (.env.test)**: Test ortamı için kullanılır
+3. **Production (.env.production)**: Canlı ortam için kullanılır
+
+## Deploy için
+Firebase Hosting kullanabilirsiniz. Firebase CLI aracını kurarak ve yapılandırarak uygulamanızı kolayca dağıtabilirsiniz.
+```bash
+npm install -g firebase-tools
+firebase login
+firebase init
+firebase deploy
+```
+
+## Katkıda Bulunanlar
+
+- Yusuf Koçak
+
+## Teşekkürler
+
+Bu uygulamayı kullanarak Kur'an-ı Kerim hatmi yaparken Yusuf Koçak'a hayır dualarınızda bulunmayı unutmayınız. Yapılan her hatimde payı olması dileğiyle.
+
+## Lisans
+
+MIT
+
+---
+
+Herhangi bir soru veya sorunuz varsa, lütfen bir Issue açınız.

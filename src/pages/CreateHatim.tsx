@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { doc, getDoc, collection, addDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuthState } from '../hooks/useAuthState';
-import type {Team, PageAssignment} from '../types';
+import type {Team} from '../types';
 
 const TOTAL_QURAN_PAGES = 604;
 
@@ -69,36 +69,55 @@ const CreateHatim = () => {
     setSubmitting(true);
 
     try {
-      const members = [...team.members];
-      const memberCount = members.length;
-      const pagesPerMember = Math.floor(TOTAL_QURAN_PAGES / memberCount);
-      const remainingPages = TOTAL_QURAN_PAGES % memberCount;
-      const pageAssignments: PageAssignment[] = [];
-      let currentPage = 1;
-      members.forEach((memberId, index) => {
-        const pagesToAssign = index < remainingPages
-          ? pagesPerMember + 1
-          : pagesPerMember;
-        const pages = Array.from(
-          { length: pagesToAssign },
-          (_, i) => currentPage + i
-        );
-        pageAssignments.push({
-          userId: memberId,
-          pages,
-          completedPages: []
-        });
-        currentPage += pagesToAssign;
-      });
-      const hatimDocRef = await addDoc(collection(db, 'hatims'), {
+      // Ana Hatim belgesini oluştur
+      const hatimRef = await addDoc(collection(db, 'hatims'), {
         teamId,
         name: hatimName,
         startDate: new Date(),
         status: 'active',
-        pageAssignments,
-        createdAt: new Date()
+        createdAt: new Date(),
+        totalPages: TOTAL_QURAN_PAGES,
+        completedPages: 0
       });
-      navigate(`/teams/${teamId}/hatim/${hatimDocRef.id}`);
+
+      const hatimId = hatimRef.id;
+
+      // Batch işlemi ile tüm page assignment'ları oluştur
+      const batch = writeBatch(db);
+      const members = [...team.members];
+      const memberCount = members.length;
+      const pagesPerMember = Math.floor(TOTAL_QURAN_PAGES / memberCount);
+      const remainingPages = TOTAL_QURAN_PAGES % memberCount;
+
+      let currentPage = 1;
+
+      // Her üye için page assignment oluştur
+      members.forEach((memberId, index) => {
+        const pagesToAssign = index < remainingPages
+          ? pagesPerMember + 1
+          : pagesPerMember;
+
+        const pages = Array.from(
+          { length: pagesToAssign },
+          (_, i) => currentPage + i
+        );
+
+        // pageAssignments subcolleciton'a belge ekle
+        const assignmentRef = doc(collection(db, 'hatims', hatimId, 'pageAssignments'));
+
+        batch.set(assignmentRef, {
+          userId: memberId,
+          pages,
+          completedPages: [],
+          createdAt: new Date()
+        });
+
+        currentPage += pagesToAssign;
+      });
+
+      await batch.commit();
+
+      navigate(`/teams/${teamId}/hatim/${hatimId}`);
     } catch (error) {
       console.error('Hatim oluşturulurken hata oluştu:', error);
       setError('Hatim oluşturulurken bir hata oluştu');

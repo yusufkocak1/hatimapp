@@ -1,5 +1,4 @@
-import {firestore} from "firebase-admin";
-import Timestamp = firestore.Timestamp;
+import { Timestamp } from "firebase/firestore";
 
 export interface CustomUser extends Omit<User, 'delete' | 'toJSON'> {
   id: string;
@@ -32,6 +31,8 @@ export interface Hatim {
   status: 'active' | 'completed';
   pageAssignments: Record<string, PageAssignment>;
   createdAt: Timestamp;
+  totalPages?: number;
+  completedPages?: number;
 }
 
 export interface PageAssignment {

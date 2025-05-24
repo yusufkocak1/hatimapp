@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
-import {arrayRemove, arrayUnion, doc, getDoc, updateDoc, Timestamp} from 'firebase/firestore';
+import {arrayRemove, arrayUnion, doc, getDoc, updateDoc, Timestamp, collection, query, getDocs} from 'firebase/firestore';
 import {db} from '../firebase/config';
 import {useAuthState} from '../hooks/useAuthState';
 import type {Hatim, PageAssignment, Team} from '../types';
@@ -15,7 +15,8 @@ const HatimDetails = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [isAdmin, setIsAdmin] = useState(false);
-    const [userAssignment, setUserAssignment] = useState<PageAssignment | null>(null);
+    const [userAssignment, setUserAssignment] = useState<PageAssignment & { id: string } | null>(null);
+    const [allAssignments, setAllAssignments] = useState<(PageAssignment & { id: string })[]>([]);
     const [completionPercentage, setCompletionPercentage] = useState(0);
 
     useEffect(() => {
@@ -25,6 +26,7 @@ const HatimDetails = () => {
             try {
                 setLoading(true);
 
+                // Hatim bilgilerini al
                 const hatimDoc = await getDoc(doc(db, 'hatims', hatimId));
 
                 if (!hatimDoc.exists()) {
@@ -34,24 +36,9 @@ const HatimDetails = () => {
                 }
 
                 const hatimData = {...hatimDoc.data(), id: hatimId} as Hatim;
+                setHatim(hatimData);
 
-                const pageAssignmentsArr = Object.values(hatimData.pageAssignments || {});
-                console.log("Sayfa atamaları:", pageAssignmentsArr.map(a => a.userId));
-
-                const assignment = pageAssignmentsArr.find((a: PageAssignment) => {
-                    const assignedId = String(a.userId).trim();
-                    const userId = String(user.uid).trim();
-                    const userEmail = user.email ? String(user.email).trim() : '';
-                    console.log("Atanan ID:", assignedId, "Kullanıcı ID:", userId, "Kullanıcı E-posta:", userEmail);
-                    return assignedId === userId || assignedId === userEmail;
-                });
-                setHatim(hatimData)
-                console.log(assignment)
-                if (!assignment) {
-                    console.log("Kullanıcı için atama bulunamadı. uid:", user.uid);
-                }
-                setUserAssignment(assignment || null);
-
+                // Takım bilgilerini al
                 const teamDoc = await getDoc(doc(db, 'teams', teamId));
 
                 if (!teamDoc.exists()) {
@@ -64,9 +51,36 @@ const HatimDetails = () => {
                 setTeam(teamData);
                 setIsAdmin(teamData.adminId === user.uid);
 
-                if (pageAssignmentsArr.length > 0) {
-                    const totalPages = pageAssignmentsArr.reduce((acc: number, curr: PageAssignment) => acc + curr.pages.length, 0);
-                    const completedPages = pageAssignmentsArr.reduce((acc: number, curr: PageAssignment) => acc + curr.completedPages.length, 0);
+                // Tüm page assignment'ları al
+                const assignmentsQuery = query(collection(db, 'hatims', hatimId, 'pageAssignments'));
+                const assignmentsSnapshot = await getDocs(assignmentsQuery);
+
+                if (assignmentsSnapshot.empty) {
+                    console.log("Sayfa ataması bulunamadı");
+                }
+
+                const assignments = assignmentsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as (PageAssignment & { id: string })[];
+
+                setAllAssignments(assignments);
+
+                // Kullanıcının atamasını bul
+                const userAssignment = assignments.find(a =>
+                    a.userId === user.uid || a.userId === user.email
+                );
+
+                if (!userAssignment) {
+                    console.log("Kullanıcı için atama bulunamadı. uid:", user.uid);
+                }
+
+                setUserAssignment(userAssignment || null);
+
+                // İlerleme yüzdesini hesapla
+                if (assignments.length > 0) {
+                    const totalPages = assignments.reduce((acc, curr) => acc + curr.pages.length, 0);
+                    const completedPages = assignments.reduce((acc, curr) => acc + (curr.completedPages?.length || 0), 0);
                     setCompletionPercentage(Math.round((completedPages / totalPages) * 100));
                 }
             } catch (error) {
@@ -98,97 +112,78 @@ const HatimDetails = () => {
         if (!hatim || !user || !userAssignment) return;
 
         try {
-            const pageAssignmentsArr = Object.values(hatim.pageAssignments || {});
-            const assignmentIndex = pageAssignmentsArr.findIndex((a: PageAssignment) =>
-                a.userId === user.uid || a.userId === user.email);
-
-            if (assignmentIndex === -1) return;
+            // Doğrudan kullanıcının atama belgesini güncelle
+            const assignmentRef = doc(db, 'hatims', hatimId!, 'pageAssignments', userAssignment.id);
 
             if (isCompleted) {
-                await updateDoc(doc(db, 'hatims', hatimId!), {
-                    [`pageAssignments.${assignmentIndex}.completedPages`]: arrayUnion(pageNumber),
-                    [`pageAssignments.${assignmentIndex}.pages`]: hatim.pageAssignments[assignmentIndex].pages,
-                    [`pageAssignments.${assignmentIndex}.userId`]: hatim.pageAssignments[assignmentIndex].userId
+                await updateDoc(assignmentRef, {
+                    completedPages: arrayUnion(pageNumber)
                 });
             } else {
-                await updateDoc(doc(db, 'hatims', hatimId!), {
-                    [`pageAssignments.${assignmentIndex}.completedPages`]: arrayRemove(pageNumber),
-                    [`pageAssignments.${assignmentIndex}.pages`]: hatim.pageAssignments[assignmentIndex].pages,
-                    [`pageAssignments.${assignmentIndex}.userId`]: hatim.pageAssignments[assignmentIndex].userId
+                await updateDoc(assignmentRef, {
+                    completedPages: arrayRemove(pageNumber)
                 });
             }
 
-            const hatimDoc = await getDoc(doc(db, 'hatims', hatimId!));
-            if (!hatimDoc.exists()) return;
+            // Güncellenmiş atamayı getir
+            const updatedAssignmentDoc = await getDoc(assignmentRef);
 
-            const hatimData = hatimDoc.data();
-            console.log("Firebase'den gelen veri:", hatimData);
-
-            let pageAssignmentsArray: PageAssignment[] = [];
-
-            if (hatimData.pageAssignments) {
-                if (Array.isArray(hatimData.pageAssignments)) {
-                    pageAssignmentsArray = [...hatimData.pageAssignments];
-                } else if (typeof hatimData.pageAssignments === 'object') {
-                    const assignmentsObjects = Object.values(hatimData.pageAssignments);
-
-                    pageAssignmentsArray = assignmentsObjects.map((assignment: any, index: number) => {
-                        if (hatim.pageAssignments[index]) {
-                            return {
-                                ...hatim.pageAssignments[index],
-                                completedPages: assignment.completedPages || []
-                            };
-                        }
-                        return {
-                            userId: assignment.userId || '',
-                            pages: assignment.pages || [],
-                            completedPages: assignment.completedPages || []
-                        };
-                    });
-
-                    console.log("Dönüştürülmüş pageAssignments:", pageAssignmentsArray);
-                }
+            if (!updatedAssignmentDoc.exists()) {
+                console.error("Güncellenmiş atama belgesi bulunamadı");
+                return;
             }
 
-            const updatedHatim = {
-                ...hatimData,
-                id: hatimId,
-                teamId: hatim.teamId,
-                name: hatim.name,
-                startDate: hatim.startDate,
-                status: hatim.status,
-                createdAt: hatim.createdAt,
-                pageAssignments: hatimData.pageAssignments
-            } as Hatim;
+            // State'i güncelle
+            const updatedAssignment = {
+                id: userAssignment.id,
+                ...updatedAssignmentDoc.data()
+            } as PageAssignment & { id: string };
 
-            setHatim(updatedHatim);
+            setUserAssignment(updatedAssignment);
 
-            if (pageAssignmentsArray.length > 0) {
-                const newUserAssignment = pageAssignmentsArray.find((a: PageAssignment) =>
-                    String(a.userId).trim() === String(user.uid).trim() ||
-                    String(a.userId).trim() === String(user.email).trim()
-                );
-                setUserAssignment(newUserAssignment || null);
-            }
+            // Tüm atamaları güncelle
+            const newAssignments = allAssignments.map(assignment =>
+                assignment.id === userAssignment.id ? updatedAssignment : assignment
+            );
 
-            if (pageAssignmentsArray.length > 0) {
-                const totalPages = pageAssignmentsArray.reduce(
-                    (acc: number, curr: PageAssignment) => acc + (curr.pages?.length || 0), 0
-                );
+            setAllAssignments(newAssignments);
 
-                const completedPages = pageAssignmentsArray.reduce(
-                    (acc: number, curr: PageAssignment) => {
-                        if (!curr.completedPages) return acc;
-                        return acc + (Array.isArray(curr.completedPages) ? curr.completedPages.length : 0);
-                    }, 0
-                );
+            // Tamamlanma oranını hesapla
+            const totalPages = newAssignments.reduce((acc, curr) => acc + curr.pages.length, 0);
+            const completedPages = newAssignments.reduce((acc, curr) => acc + (curr.completedPages?.length || 0), 0);
 
-                setCompletionPercentage(Math.round((completedPages / totalPages) * 100));
+            const newCompletionPercentage = Math.round((completedPages / totalPages) * 100);
+            setCompletionPercentage(newCompletionPercentage);
 
-                if (completedPages === totalPages && totalPages > 0) {
-                    await updateDoc(doc(db, 'hatims', hatimId!), {
+            // Hatim tamamlandı mı kontrol et
+            if (completedPages === totalPages && totalPages > 0) {
+                const hatimRef = doc(db, 'hatims', hatimId!);
+                await updateDoc(hatimRef, {
+                    status: 'completed',
+                    endDate: new Date(),
+                    completedPages: completedPages
+                });
+
+                // Hatim state'ini güncelle
+                if (hatim) {
+                    setHatim({
+                        ...hatim,
                         status: 'completed',
-                        endDate: new Date()
+                        endDate: Timestamp.now(),
+                        completedPages: completedPages
+                    });
+                }
+            } else {
+                // Sadece tamamlanan sayfa sayısını güncelle
+                const hatimRef = doc(db, 'hatims', hatimId!);
+                await updateDoc(hatimRef, {
+                    completedPages: completedPages
+                });
+
+                if (hatim) {
+                    setHatim({
+                        ...hatim,
+                        completedPages: completedPages
                     });
                 }
             }
@@ -202,7 +197,8 @@ const HatimDetails = () => {
 
         try {
             await updateDoc(doc(db, 'hatims', hatimId!), {
-                status: 'completed', endDate: Timestamp.now()
+                status: 'completed',
+                endDate: Timestamp.now()
             });
 
             setHatim({...hatim, status: 'completed', endDate: Timestamp.now()});
@@ -335,7 +331,7 @@ const HatimDetails = () => {
                     <div
                         className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                         {userAssignment.pages.map(page => {
-                            const isCompleted = userAssignment.completedPages.includes(page);
+                            const isCompleted = userAssignment.completedPages?.includes(page) || false;
                             return (<button
                                 key={page}
                                 onClick={() => handleMarkPage(page, !isCompleted)}
@@ -360,7 +356,7 @@ const HatimDetails = () => {
                 Tüm Sayfa Atamaları
             </h3>
             <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {Object.values(hatim.pageAssignments || {}).map(assignment => {
+                {allAssignments.map(assignment => {
                     const memberName = team?.members.includes(assignment.userId)
                         ? (assignment.userId === user?.uid ? 'Siz' : assignment.userId)
                         : 'Bilinmeyen Üye';
@@ -369,7 +365,7 @@ const HatimDetails = () => {
                     const progress = totalPageCount > 0 ? Math.round((completedPageCount / totalPageCount) * 100) : 0;
 
                     return (
-                        <div key={assignment.userId}
+                        <div key={assignment.id}
                              className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
                             <div className="px-4 py-5 sm:p-6">
                                 <div className="flex items-center justify-between">
